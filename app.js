@@ -1,14 +1,24 @@
 const express = require('express');
 const app = express();
+
 const path = require('path');
 const ejsMate = require('ejs-mate');
-const mongoose = require('mongoose');
-const flash = require('connect-flash');
-const session = require('express-session');
-const reviews = require('./routes/review');
-const campgrounds = require('./routes/campgrounds');
-const ExpressError = require('./utils/ExpressError');
 const methodOverride = require('method-override');
+
+const mongoose = require('mongoose');
+
+const session = require('express-session');
+const flash = require('connect-flash');
+const passport = require('passport');
+const LocalStrategy = require('passport-local');
+
+const ExpressError = require('./utils/ExpressError');
+
+const User = require('./models/user');
+
+const userRoutes = require('./routes/users');
+const reviewRoutes = require('./routes/review');
+const campgroundRoutes = require('./routes/campgrounds');
 
 // db 연결
 mongoose.connect('mongodb://localhost:27017/yelp-camp');
@@ -44,16 +54,34 @@ const sessionConfig = {
 app.use(session(sessionConfig));
 app.use(flash());
 
+// 인증
+app.use(passport.initialize());
+app.use(passport.session()); // 세션 이후에 passport.session 설정
+passport.use(new LocalStrategy(User.authenticate()));
+// 직렬화-역직렬화
+passport.serializeUser(User.serializeUser());
+passport.deserializeUser(User.deserializeUser());
+
 //미들웨어
 app.use((req, res, next) => {
+    // 로그인 유저
+    res.locals.currentUser = req.user; // passport에서 req.user 자동 추가
+    // 플래시
     res.locals.success = req.flash('success');
     res.locals.error = req.flash('error');
     next();
 });
 
 // 라우터
-app.use('/campgrounds', campgrounds);
-app.use('/campgrounds/:id/reviews', reviews);
+app.use('/', userRoutes);
+app.use('/campgrounds', campgroundRoutes);
+app.use('/campgrounds/:id/reviews', reviewRoutes);
+
+app.get('/fakeUser', async (req, res) => {
+    const user = new User({ email: 'abcdef@gmail.com', username: 'fake' });
+    const newUser = await User.register(user, 'password');
+    res.send(newUser);
+});
 
 app.get('/', (req, res) => {
     res.render('home');
