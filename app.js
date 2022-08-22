@@ -1,3 +1,7 @@
+if (process.env.NODE_ENV !== 'production') {
+    require('dotenv').config();
+}
+
 const express = require('express');
 const app = express();
 
@@ -19,6 +23,7 @@ const User = require('./models/user');
 const userRoutes = require('./routes/users');
 const reviewRoutes = require('./routes/review');
 const campgroundRoutes = require('./routes/campgrounds');
+
 
 // db 연결
 mongoose.connect('mongodb://localhost:27017/yelp-camp');
