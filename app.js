@@ -15,6 +15,7 @@ const session = require('express-session');
 const flash = require('connect-flash');
 const passport = require('passport');
 const LocalStrategy = require('passport-local');
+const MongoDBStore = require('connect-mongo');
 
 const ExpressError = require('./utils/ExpressError');
 
@@ -29,7 +30,8 @@ const helmet = require('helmet');
 
 
 // db 연결
-mongoose.connect('mongodb://localhost:27017/yelp-camp');
+const dbURL = process.env.DB_URL || 'mongodb://localhost:27017/yelp-camp';
+mongoose.connect(dbURL);
 const db = mongoose.connection;
 db.on('error', console.error.bind(console, 'connection error: '));
 db.once('open', () => {
@@ -49,16 +51,26 @@ app.use(methodOverride('_method'));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // 세션, 플래시
+const secret = process.env.SECRET || 'ThisIsSecretCode';
+const store = MongoDBStore.create({
+    mongoUrl: dbURL,
+    secret,
+    touchAfter: 24 * 60 * 60 // 초
+});
+store.on('error', function (e) {
+    console.log('session store error', e);
+});
 const sessionConfig = {
+    store,
     name: 'session',
-    secret: 'ThisIsSecretCode',
+    secret,
     resave: false,
     saveUninitialized: true,
     cookie: {
         httpOnly: true, // http로만 접근 가능, js등으로 접근 x
         // secure: true, // https
-        expires: Date.now() + 1000 * 60 * 60 * 24 * 7,
-        maxAge: 1000 * 60 * 60 * 24 * 7
+        expires: Date.now() + 1000 * 60 * 60 * 24 * 7, //밀리초
+        maxAge: 1000 * 60 * 60 * 24 * 7 //밀리초
     }
 };
 app.use(session(sessionConfig));
