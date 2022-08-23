@@ -24,6 +24,9 @@ const userRoutes = require('./routes/users');
 const reviewRoutes = require('./routes/review');
 const campgroundRoutes = require('./routes/campgrounds');
 
+const mongoSanitize = require('express-mongo-sanitize');
+const helmet = require('helmet');
+
 
 // db 연결
 mongoose.connect('mongodb://localhost:27017/yelp-camp');
@@ -47,11 +50,13 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // 세션, 플래시
 const sessionConfig = {
+    name: 'session',
     secret: 'ThisIsSecretCode',
     resave: false,
     saveUninitialized: true,
     cookie: {
-        httpOnly: true,
+        httpOnly: true, // http로만 접근 가능, js등으로 접근 x
+        // secure: true, // https
         expires: Date.now() + 1000 * 60 * 60 * 24 * 7,
         maxAge: 1000 * 60 * 60 * 24 * 7
     }
@@ -66,6 +71,60 @@ passport.use(new LocalStrategy(User.authenticate()));
 // 직렬화-역직렬화
 passport.serializeUser(User.serializeUser());
 passport.deserializeUser(User.deserializeUser());
+
+// 보안
+// - 인젝션 방어
+// app.use(mongoSanitize()); // 쿼리스트링에서 금지어($, .) 필터링 -- 삭제
+app.use(mongoSanitize({ // 금지어를 replac 문자로 변경
+    replaceWith: '_'
+}));
+app.use(helmet({
+    crossOriginEmbedderPolicy: false
+}));
+const scriptSrcUrls = [
+    "https://stackpath.bootstrapcdn.com/",
+    "https://api.tiles.mapbox.com/",
+    "https://api.mapbox.com/",
+    "https://kit.fontawesome.com/",
+    "https://cdnjs.cloudflare.com/",
+    "https://cdn.jsdelivr.net",
+];
+const styleSrcUrls = [
+    "https://kit-free.fontawesome.com/",
+    "https://stackpath.bootstrapcdn.com/",
+    "https://api.mapbox.com/",
+    "https://api.tiles.mapbox.com/",
+    "https://fonts.googleapis.com/",
+    "https://use.fontawesome.com/",
+    "https://cdn.jsdelivr.net",
+];
+const connectSrcUrls = [
+    "https://api.mapbox.com/",
+    "https://a.tiles.mapbox.com/",
+    "https://b.tiles.mapbox.com/",
+    "https://events.mapbox.com/",
+];
+const fontSrcUrls = [];
+app.use(
+    helmet.contentSecurityPolicy({
+        directives: {
+            defaultSrc: [],
+            connectSrc: ["'self'", ...connectSrcUrls],
+            scriptSrc: ["'unsafe-inline'", "'self'", ...scriptSrcUrls],
+            styleSrc: ["'self'", "'unsafe-inline'", ...styleSrcUrls],
+            workerSrc: ["'self'", "blob:"],
+            objectSrc: [],
+            imgSrc: [
+                "'self'",
+                "blob:",
+                "data:",
+                "https://res.cloudinary.com/dqzonxntk/",
+                "https://images.unsplash.com/",
+            ],
+            fontSrc: ["'self'", ...fontSrcUrls],
+        },
+    })
+);
 
 //미들웨어
 app.use((req, res, next) => {
